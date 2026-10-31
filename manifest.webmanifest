@@ -1,0 +1,22 @@
+{
+ "name": "小龜成長日記",
+ "short_name": "小龜日記",
+ "start_url": "./",
+ "scope": "./",
+ "display": "fullscreen",
+ "orientation": "any",
+ "background_color": "#cfe8d6",
+ "theme_color": "#cfe8d6",
+ "icons": [
+  {
+   "src": "icon-192.png",
+   "sizes": "192x192",
+   "type": "image/png"
+  },
+  {
+   "src": "icon-512.png",
+   "sizes": "512x512",
+   "type": "image/png"
+  }
+ ]
+}
