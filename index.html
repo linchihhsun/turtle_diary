@@ -4014,6 +4014,30 @@ function syncLeftovers(){
 const poopG=new THREE.Group();tankG.add(poopG);
 const poopMat=new THREE.MeshStandardMaterial({color:0x4a2f14,roughness:.55});
 const poopHit=new THREE.MeshBasicMaterial({visible:false});
+/* x-ray: when a decoration hides a poop, draw it on top (plus a pulsing ring) so it can always be found */
+const poopMatX=new THREE.MeshBasicMaterial({color:0x4a2a10,transparent:true,opacity:.92,depthTest:false,depthWrite:false});
+const poopRingMat=new THREE.MeshBasicMaterial({color:0xfff3b0,transparent:true,opacity:.85,depthTest:false,depthWrite:false,side:THREE.DoubleSide});
+const poopRay=new THREE.Raycaster();let poopOccT=0;const poopDQ=new WeakMap();
+function poopDeq(g){const a=g.attributes.position;if(!a||!a.normalized)return g;let q=poopDQ.get(g);if(q)return q;
+  const M={Int8Array:127,Uint8Array:255,Int16Array:32767,Uint16Array:65535}[a.array.constructor.name]||1,signed=/^Int/.test(a.array.constructor.name),n=a.count,f=new Float32Array(n*3);
+  for(let i=0;i<n;i++)for(let k=0;k<3;k++){const v=[a.getX(i),a.getY(i),a.getZ(i)][k]/M;f[i*3+k]=signed?Math.max(v,-1):v}
+  q=new THREE.BufferGeometry();q.setAttribute("position",new THREE.BufferAttribute(f,3));if(g.index)q.setIndex(g.index);q.boundingSphere=g.boundingSphere;q.boundingBox=g.boundingBox;poopDQ.set(g,q);return q}
+function poopOcclusion(now){
+  poopG.children.forEach(m=>{const r=m.userData.ring;if(r&&r.visible){const k=1+.18*Math.sin(now/260);r.scale.set(k,k,k)}});
+  if(now-poopOccT<450)return;poopOccT=now;
+  // some decorations are quantized GLBs: three r128 raycasts read their raw int16 positions, so raycast a dequantized copy
+  const occ=[];[decoG,platG].forEach(g=>{if(g&&g.visible)g.traverse(o=>{if(o.isMesh&&o.visible&&o.material&&o.material.visible!==false&&!(o.material.opacity<.35))occ.push(o)})});
+  const cp=new V3(),pp=new V3();camera.getWorldPosition(cp);
+  poopG.children.forEach(m=>{
+    let hid=false;
+    if(occ.length&&!m.userData.scooping){m.getWorldPosition(pp);pp.y+=.05;const d=pp.clone().sub(cp),L=d.length();poopRay.set(cp,d.normalize());poopRay.near=0;poopRay.far=L-.08;
+      for(const o of occ){const g0=o.geometry,g1=poopDeq(g0);if(g1!==g0)o.geometry=g1;let h=[];try{h=poopRay.intersectObject(o,false)}finally{o.geometry=g0}if(h.length){hid=true;break}}}
+    if(hid===!!m.userData.xray)return;m.userData.xray=hid;
+    m.children.forEach(c=>{if(c.material===poopMat||c.material===poopMatX){c.material=hid?poopMatX:poopMat;c.renderOrder=hid?30:0}});
+    if(hid){if(!m.userData.ring){const r=new THREE.Mesh(new THREE.RingGeometry(.16,.2,32),poopRingMat);r.rotation.x=-Math.PI/2;r.position.y=.012;r.renderOrder=29;m.add(r);m.userData.ring=r}m.userData.ring.visible=true}
+    else if(m.userData.ring)m.userData.ring.visible=false;
+  });
+}
 let poopSeen=-1,poopSyncT=0;const scoops=[];
 function makePoop(){
   const g=new THREE.Group();
@@ -4066,6 +4090,7 @@ function scoopPoop(m){
 }
 function poopTick(now){
   if(now-poopSyncT>800){poopSyncT=now;syncPoops()}
+  try{poopOcclusion(now)}catch(e){}
   for(let i=scoops.length-1;i>=0;i--){const s=scoops[i],t=(now-s.t0)/1000;
     const down=Math.min(1,t/.7),up=clamp((t-.95)/.85,0,1);
     const y=t<.95?WY+1.2+(s.p.y+.06-(WY+1.2))*(1-Math.pow(1-down,3)):s.p.y+.06+(WY+1.4-(s.p.y+.06))*up*up;
